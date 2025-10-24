@@ -1,0 +1,8 @@
+{
+  "appName": "Water Reminder",
+  "welcomeMessage": "Welcome to your hydration tracker!",
+  "startButton": "Get Started",
+  "dailyGoal": "Daily Water Goal",
+  "reminder": "Reminder",
+  "addWater": "Add Water"
+}
