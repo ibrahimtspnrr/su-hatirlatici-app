@@ -56,8 +56,8 @@ dev_dependencies:
 flutter_icons:
   ios: true
   android: true
-  image_path: "uygulama_icons/logo2.png"
-  image_path_android: "uygulama_icons/logo2.png"
+  image_path: "uygulama_icons/logo3.png"
+  image_path_android: "uygulama_icons/logo3.png"
 
 
   # The "flutter_lints" package below contains a set of recommended lints to
