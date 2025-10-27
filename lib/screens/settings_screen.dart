@@ -1,5 +1,5 @@
 // lib/screens/settings_screen.dart
-// (FINAL) – Ayarlar + Minimal Tema Rengi seçici (GECE YARISI SAAT DÜZELTMESİ)
+// (FINAL) – Ayarlar + Minimal Tema Rengi seçici (UYKU SAATİ MANTIĞI)
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -22,8 +22,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   int _currentGoal = 0;
   List<int> _customVolumes = [];
-  int _startHour = 8;
-  int _endHour = 22;
+  int _startHour = 8;  // Uyku başlangıcı
+  int _endHour = 22; // Uyku bitişi
   int _intervalMinutes = 60;
 
   // Tema seçici görünürlüğü
@@ -51,8 +51,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _currentGoal = preferenceService.getDailyGoal();
       _customVolumes = preferenceService.getCustomVolumes();
-      _startHour = preferenceService.getStartHour();
-      _endHour = preferenceService.getEndHour();
+      _startHour = preferenceService.getStartHour(); // Aslında uyku başlangıcı
+      _endHour = preferenceService.getEndHour();     // Aslında uyku bitişi
       _intervalMinutes = preferenceService.getReminderInterval();
       _currentColorHex = preferenceService.getAppPrimaryColorHex();
     });
@@ -325,23 +325,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // --- Hatırlatıcı saat aralığı ve sıklığı ---
+  // --- Hatırlatıcıları yeniden planla ---
   void _rescheduleReminders() {
     final Duration interval = Duration(minutes: preferenceService.getReminderInterval());
+    final int sleepStartHour = preferenceService.getStartHour();
+    final int sleepEndHour = preferenceService.getEndHour();
+
     notificationService.scheduleWaterReminders(
-      startHour: preferenceService.getStartHour(),
-      endHour: preferenceService.getEndHour(),
+      sleepStartHour: sleepStartHour,
+      sleepEndHour: sleepEndHour,
       interval: interval,
     );
   }
 
 
-  // --- Uyanma/Yatış Saat Seçimi (GECE YARISI DÜZELTMESİ) ---
+  // --- Uyku Saatleri Seçimi ---
   Future<void> _showHoursEditDialog() async {
-    int tempStart = _startHour;
-    // Yatış saatinin başlangıçtan sonra olmasını sağla (gece yarısını geçse bile)
-    int tempEnd = _endHour;
-    int step = 0; // 0: Uyanma, 1: Yatış
+    int tempSleepStart = _startHour; // Mevcut uyku başlangıcı
+    int tempSleepEnd = _endHour;     // Mevcut uyku bitişi
+    int step = 0; // 0: Uyku Başlangıcı, 1: Uyku Bitişi (Uyanma)
 
     await showModalBottomSheet(
       context: context,
@@ -355,8 +357,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
         return StatefulBuilder(
           builder: (context, setInnerState) {
-            final String title = step == 0 ? 'Uyanma Saatini Seç' : 'Yatış Saatini Seç';
-            final int initialHour = step == 0 ? tempStart : tempEnd;
+            final String title = step == 0 ? 'Yatış Saatini Seç' : 'Uyanma Saatini Seç';
+            final int initialHour = step == 0 ? tempSleepStart : tempSleepEnd;
 
             return Padding(
               padding: EdgeInsets.only(bottom: bottomInset),
@@ -406,18 +408,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: CupertinoDatePicker(
                         mode: CupertinoDatePickerMode.time,
                         use24hFormat: true,
-                        // dakika seçimini kaldırıyoruz, sadece saat önemli
                         initialDateTime: DateTime(2024, 1, 1, initialHour, 0),
                         onDateTimeChanged: (dt) {
                           setInnerState(() {
                             if (step == 0) {
-                              tempStart = dt.hour;
-                              // Yatış saati başlangıçla aynı olmasın diye kontrol edebiliriz
-                              // if (tempEnd == tempStart) {
-                              //   tempEnd = (tempStart + 1) % 24; // Gece yarısını geçmeyi handle eder
-                              // }
+                              tempSleepStart = dt.hour;
                             } else {
-                              tempEnd = dt.hour;
+                              tempSleepEnd = dt.hour;
                             }
                           });
                         },
@@ -442,22 +439,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               label: Text(step == 0 ? 'İleri' : 'Kaydet'),
                               onPressed: () async {
                                 if (step == 0) {
-                                  // Uyanma seçildi, şimdi yatışa geç
+                                  // Uyku başlangıcı seçildi, şimdi bitişe geç
                                   setInnerState(() => step = 1);
                                   return;
                                 }
 
                                 // step == 1 => Kaydet
-                                // --- ARTIK BU KONTROL GEREKLİ DEĞİL ---
-                                // if (tempStart >= tempEnd) { ... } BLOKU SİLİNDİ
-                                // --- BİTİŞ ---
-
-                                await preferenceService.saveReminderHours(tempStart, tempEnd);
+                                await preferenceService.saveReminderHours(tempSleepStart, tempSleepEnd);
 
                                 if (mounted) {
                                   setState(() {
-                                    _startHour = tempStart;
-                                    _endHour = tempEnd;
+                                    _startHour = tempSleepStart; // _startHour artık uyku başlangıcı
+                                    _endHour = tempSleepEnd;     // _endHour artık uyku bitişi
                                   });
                                 }
 
@@ -468,7 +461,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   Navigator.pop(context);
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text('Saatler güncellendi: $_startHour:00 - $_endHour:00'),
+                                      content: Text('Uyku saatleri güncellendi: $_startHour:00 - $_endHour:00'),
                                     ),
                                   );
                                 }
@@ -492,13 +485,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
 
   Future<void> _showIntervalEditDialog() async {
+    // --- 2 DAKİKA SEÇENEĞİ KALDIRILDI ---
     final intervals = [
+      //{'value': 2, 'label': '2 Dakika (Test Amaçlı)'}, // <-- BU SATIR SİLİNDİ
       {'value': 30, 'label': '30 Dakika (Yoğun Takip)'},
       {'value': 45, 'label': '45 Dakika'},
       {'value': 60, 'label': '1 Saat (Önerilen)'},
       {'value': 90, 'label': '1 Saat 30 Dakika'},
       {'value': 120, 'label': '2 Saat (Rahat Takip)'}
     ];
+    // --- BİTİŞ ---
 
     int? selectedInterval = await showDialog<int>(
       context: context,
@@ -517,15 +513,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   leading: Radio<int>(
                     value: interval,
                     groupValue: _intervalMinutes,
-                    onChanged: (int? value) => Navigator.pop(context, value),
+                    onChanged: (int? value) {
+                      if (mounted) Navigator.pop(context, value);
+                    },
                   ),
-                  onTap: () => Navigator.pop(context, interval),
+                  onTap: () {
+                    if (mounted) Navigator.pop(context, interval);
+                  },
                 );
               }).toList(),
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Kapat')),
+            TextButton(onPressed: () { if (mounted) Navigator.pop(context); }, child: const Text('Kapat')),
           ],
         );
       },
@@ -644,21 +644,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
             }).toList(),
           ),
 
-          // 4) Sabit Aralık Ayarları
+          // 4) Sabit Aralık Ayarları (UYKU SAATİ MANTIĞI)
           _buildSettingsCard(
             title: 'Sabit Aralık Ayarları',
             children: [
               ListTile(
-                leading: Icon(Icons.access_time, color: primary),
-                title: const Text('Uyanma ve Yatış Saatleri'), // <-- Metin düzeltildi
-                subtitle: Text('$_endHour:00 - $_startHour:00 Arası Bildirim Gönderilmez'),
+                leading: Icon(Icons.bedtime_outlined, color: primary), // <-- İkon değişti
+                // --- YENİ METİNLER ---
+                title: const Text('Uyku Saatleri'),
+                subtitle: Text('$_startHour:00 - $_endHour:00 arası bildirim gönderilmez'),
+                // --- BİTİŞ ---
                 trailing: const Icon(Icons.edit),
                 onTap: _showHoursEditDialog,
               ),
               ListTile(
-                leading: Icon(Icons.notifications_none, color: primary),
+                leading: Icon(Icons.notifications_active_outlined, color: primary), // <-- İkon değişti
                 title: const Text('Hatırlatıcı Sıklığı'),
-                subtitle: Text('Her $_intervalMinutes dakikada bir'),
+                subtitle: Text('Uyanıkken her $_intervalMinutes dakikada bir'), // <-- Metin güncellendi
                 trailing: const Icon(Icons.edit),
                 onTap: _showIntervalEditDialog,
               ),

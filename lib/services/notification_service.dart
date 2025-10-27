@@ -1,7 +1,8 @@
 // lib/services/notification_service.dart
-// (FINAL) – Zaman dilimine göre akıllı metin + GECE YARISI DÖNGÜ DÜZELTMESİ
+// (FINAL) – Zaman dilimine göre akıllı metin + UYKU SAATİ MANTIĞI
 
 import 'dart:math';
+import 'package:flutter/foundation.dart'; // print için eklendi (debug)
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'preference_service.dart'; // getEnabledCustomReminders için
@@ -17,7 +18,10 @@ class NotificationService {
     const AndroidInitializationSettings initializationSettingsAndroid =
     AndroidInitializationSettings('@mipmap/ic_launcher');
     const DarwinInitializationSettings initializationSettingsIOS =
-    DarwinInitializationSettings();
+    DarwinInitializationSettings(
+      // iOS < 10 için bildirim tıklandığında eski callback (isteğe bağlı)
+      // onDidReceiveLocalNotification: onDidReceiveLocalNotification,
+    );
 
     const InitializationSettings initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
@@ -26,28 +30,58 @@ class NotificationService {
 
     await _notificationsPlugin.initialize(
       initializationSettings,
-      onDidReceiveNotificationResponse:
-          (NotificationResponse notificationResponse) async {},
+      // Bildirime tıklandığında çağrılan callback (iOS >= 10 ve Android)
+      onDidReceiveNotificationResponse: onDidReceiveNotificationResponse,
+      // Uygulama ön plandayken bildirim geldiğinde (iOS < 10)
+      // onDidReceiveBackgroundNotificationResponse: onDidReceiveBackgroundNotificationResponse, // Bu yeni versiyonlarda değişmiş olabilir
     );
   }
 
+  // Bildirime tıklandığında ne olacağı (payload ile bilgi taşınabilir)
+  void onDidReceiveNotificationResponse(NotificationResponse response) async {
+    // Örneğin payload'a göre farklı bir sayfaya yönlendirme yapılabilir
+    if (response.payload != null) {
+      debugPrint('notification payload: ${response.payload}');
+      // navigatorKey.currentState?.pushNamed('/detail', arguments: response.payload);
+    }
+    // Veya sadece ana ekranı aç
+  }
+
+  /* // iOS < 10 için eski callback (artık pek gerekli değil)
+  void onDidReceiveLocalNotification(
+      int id, String? title, String? body, String? payload) async {
+    // display a dialog with the notification details, tap ok to go to another page
+    // showDialog(...);
+  }
+  */
+
   Future<bool?> requestPermissions() async {
-    return await _notificationsPlugin
-        .resolvePlatformSpecificImplementation<
-        IOSFlutterLocalNotificationsPlugin>()
-        ?.requestPermissions(
-      alert: true,
-      badge: true,
-      sound: true,
-    ) ??
-        await _notificationsPlugin
-            .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-            ?.requestNotificationsPermission();
+    final IOSFlutterLocalNotificationsPlugin? iosImplementation =
+    _notificationsPlugin.resolvePlatformSpecificImplementation<
+        IOSFlutterLocalNotificationsPlugin>();
+    if (iosImplementation != null) {
+      return await iosImplementation.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+    }
+
+    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+    _notificationsPlugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (androidImplementation != null) {
+      // Android 13 (API 33) ve sonrası için özel izin isteği
+      return await androidImplementation.requestNotificationsPermission();
+    }
+    return false; // Desteklenmeyen platform
   }
 
   Future<void> cancelAllNotifications() async {
     await _notificationsPlugin.cancelAll();
+    if (kDebugMode) {
+      print('[NotificationService] Tüm bildirimler iptal edildi.');
+    }
   }
 
   /// === ZAMAN DİLİMLİ MESAJLAR ===
@@ -55,8 +89,9 @@ class NotificationService {
   /// 18–21 Akşam, 22–04 Gece
   ({String title, String body}) _titleBodyForHour(int hour) {
     String pick(List<String> list) => list[_rng.nextInt(list.length)];
-    // İstediğiniz son cümle:
-    String bodySuffix = '\nİçtikten sonra onaylamak için bildirime dokunun.';
+    // Bildirim gövdesine eklenecek sabit metin (isteğe bağlı)
+    // String bodySuffix = '\nİçtikten sonra onaylamak için bildirime dokunun.';
+    String bodySuffix = ''; // Şimdilik boş bırakalım
 
     if (hour >= 5 && hour <= 10) {
       final titles = ['Gün Başlıyor! ☀️', 'Sabah Enerjisi 💧', 'Yeni Güne Merhaba!'];
@@ -91,85 +126,100 @@ class NotificationService {
       ];
       return (title: pick(titles), body: pick(bodies) + bodySuffix);
     } else { // Gece saatleri (22, 23, 0, 1, 2, 3, 4)
+      // Gece mesajları belki daha sakin olmalı?
       final titles = ['Geceye Hazırlık 🌙', 'Yumuşak Kapanış', 'Rahat Bir Gece'];
       final bodies = [
         'Bugün harikaydı! Bir bardak suyla günü bitir 🌙',
         'Uyku öncesi hafif bir su iyi gelir.',
         'Dinlenmeye geçmeden minik bir bardak su al.',
       ];
+      // Gece bildirim gönderilmeyeceği için bu mesajlar aslında pek kullanılmayacak.
       return (title: pick(titles), body: pick(bodies) + bodySuffix);
     }
   }
 
-  /// Su içme hatırlatıcılarını planlar (Sabit aralık + Etkin özel saatler + GECE YARISI DÜZELTMESİ)
+  /// Su içme hatırlatıcılarını planlar (UYKU SAATLERİ DIŞINDA)
   Future<void> scheduleWaterReminders({
-    required int startHour,
-    required int endHour,
-    required Duration interval,
+    required int sleepStartHour, // Uyku başlangıç saati (örn: 22)
+    required int sleepEndHour,   // Uyku bitiş saati (örn: 8)
+    required Duration interval,   // Hatırlatma sıklığı (örn: 60 dakika)
   }) async {
     await cancelAllNotifications();
-    if (interval.inMinutes <= 0) return; // Geçersiz aralık ise çık
+    if (interval.inMinutes <= 0) {
+      if (kDebugMode) {
+        print('[NotificationService] Geçersiz interval: ${interval.inMinutes}');
+      }
+      return; // Geçersiz aralık ise çık
+    }
+
 
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'water_reminder_id',
       'Su İçme Hatırlatıcıları',
       channelDescription: 'Düzenli su içme hatırlatıcıları için',
       importance: Importance.high,
-      priority: Priority.high, // Öncelik eklendi
+      priority: Priority.high,
     );
     const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
-    ); // iOS ayarları ayrıldı
+    );
     const NotificationDetails platformChannelDetails =
     NotificationDetails(android: androidDetails, iOS: iosDetails);
 
     int notificationId = 0; // Her bildirim için ID artırılacak
     final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
 
-    // === 1) Sabit aralıklarla (uyanma–yatış arasında) - GECE YARISI DÜZELTMELİ ===
-
-    // İlk alarm zamanını hesapla (bugün veya yarın `startHour`:00)
-    tz.TZDateTime nextScheduleTime = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day,
-      startHour,
-      0, // Dakikayı 0 yapıyoruz
-    );
-    if (nextScheduleTime.isBefore(now)) {
-      nextScheduleTime = nextScheduleTime.add(const Duration(days: 1));
+    // İlk potansiyel alarm zamanını hesapla (bugün veya yarın saat 00:00'dan başlayarak interval ekle)
+    // Bu, tüm günü taramamızı sağlar.
+    tz.TZDateTime nextScheduleTime = tz.TZDateTime(tz.local, now.year, now.month, now.day, 0, 0);
+    while(nextScheduleTime.isBefore(now)){
+      nextScheduleTime = nextScheduleTime.add(interval);
+    }
+    // Eğer ilk saat `now`dan sonra ise, bir önceki intervale geri dönelim ki kaçırmayalım
+    if (nextScheduleTime.difference(now) > interval) {
+      nextScheduleTime = nextScheduleTime.subtract(interval);
     }
 
-    // Gece yarısını geçme durumunu kontrol et
-    bool wrapsMidnight = endHour <= startHour;
+
+    // Gece yarısını geçme durumunu kontrol et (Uyku saatleri için)
+    bool sleepWrapsMidnight = sleepEndHour <= sleepStartHour;
 
     // Döngüyü 24 saatlik bir periyotta en fazla kaç alarm olabileceği ile sınırlayalım
-    // (Örn: 30 dk aralık = 48 alarm max) - Sonsuz döngüden kaçınmak için
-    int maxAlarms = (24 * 60) ~/ interval.inMinutes + 1;
+    int maxAlarms = (24 * 60) ~/ interval.inMinutes + 2; // +2 pay bırakalım
     int alarmCount = 0;
 
+    if (kDebugMode) {
+      print('[NotificationService] Planlama başlıyor. Uyku: $sleepStartHour:00 - $sleepEndHour:00, Aralık: ${interval.inMinutes} dk');
+    }
 
     while (alarmCount < maxAlarms) {
       alarmCount++;
 
-      // Geçerli saat aralığında mıyız?
-      bool isInRange;
-      if (wrapsMidnight) {
-        // Gece yarısını geçiyorsa (örn: 22:00 - 06:00)
-        // Saat >= başlangıç VEYA Saat < bitiş olmalı
-        isInRange = nextScheduleTime.hour >= startHour || nextScheduleTime.hour < endHour;
+      // --- UYKU SAATİ KONTROLÜ (TERS MANTIK) ---
+      // Şu anki `nextScheduleTime.hour` uyku aralığında mı?
+      bool isSleepingTime;
+      if (sleepWrapsMidnight) {
+        // Uyku gece yarısını geçiyorsa (örn: 22:00 - 06:00)
+        // Saat >= uyku başlangıcı VEYA Saat < uyku bitişi ise UYKU ZAMANI
+        isSleepingTime = nextScheduleTime.hour >= sleepStartHour || nextScheduleTime.hour < sleepEndHour;
       } else {
-        // Normal aralık (örn: 08:00 - 22:00)
-        // Saat >= başlangıç VE Saat < bitiş olmalı
-        isInRange = nextScheduleTime.hour >= startHour && nextScheduleTime.hour < endHour;
+        // Normal uyku aralığı (örn: 00:00 - 08:00)
+        // Saat >= uyku başlangıcı VE Saat < uyku bitişi ise UYKU ZAMANI
+        isSleepingTime = nextScheduleTime.hour >= sleepStartHour && nextScheduleTime.hour < sleepEndHour;
       }
+      // --- BİTİŞ: UYKU SAATİ KONTROLÜ ---
 
-      // Eğer geçerli aralıktaysak, alarmı kur
-      if (isInRange) {
+
+      // Eğer UYKU ZAMANI DEĞİLSE (!isSleepingTime), alarmı kur
+      if (!isSleepingTime) {
         final msg = _titleBodyForHour(nextScheduleTime.hour);
+
+        if (kDebugMode) {
+          print('[NotificationService] Alarm kuruluyor: ID=$notificationId, Zaman=$nextScheduleTime, Mesaj="${msg.title}"');
+        }
+
         await _notificationsPlugin.zonedSchedule(
           notificationId++,
           msg.title,
@@ -181,22 +231,30 @@ class NotificationService {
           UILocalNotificationDateInterpretation.absoluteTime,
           matchDateTimeComponents: DateTimeComponents.time, // Her gün aynı saatte tekrarla
         );
+      } else {
+        if (kDebugMode) {
+          print('[NotificationService] Uyku saati, alarm kurulmuyor: Zaman=$nextScheduleTime');
+        }
       }
 
       // Bir sonraki alarm zamanını hesapla
       nextScheduleTime = nextScheduleTime.add(interval);
 
-      // --- Döngüden Çıkış Kontrolü ---
-      // Eğer bir sonraki saat, bir tam gün sonrasına denk geliyorsa
-      // (yani tüm günü taradık), döngüden çıkabiliriz.
-      // Bu, `endHour` kontrolünden daha güvenlidir.
-      if (nextScheduleTime.difference(now).inDays >= 1 && alarmCount > 1) {
+      // Döngüden çıkış kontrolü: Eğer bir sonraki saat, başlangıçtan 24 saatten fazla ilerideyse çık
+      if (nextScheduleTime.difference(now).inHours >= 24) {
+        if (kDebugMode) {
+          print('[NotificationService] 24 saatlik planlama tamamlandı.');
+        }
         break;
       }
     }
 
-    // === 2) Özel hatırlatma saatleri (SADECE ETKİN OLANLAR) ===
-    // Bu kısım aynı kalabilir, çünkü her saat için ayrı ayrı kontrol yapıyor.
+    // === ÖZEL SAATLER BÖLÜMÜ (İsteğe Bağlı) ===
+    // İsterseniz, özel saatlerin de uyku saatlerine denk gelip gelmediğini kontrol edebilirsiniz.
+    // Şimdilik bu bölümü olduğu gibi bırakıyorum, yani özel saatler uyku saatine denk gelse BİLE ÇALAR.
+    // Eğer özel saatlerin de uyku saatinde çalmasını istemiyorsanız, aşağıdaki for döngüsünün
+    // içine de `isSleepingTime` kontrolünü eklemeniz gerekir.
+
     final List<String> enabledCustomTimes =
     preferenceService.getEnabledCustomReminders();
 
@@ -221,18 +279,32 @@ class NotificationService {
         customTime = customTime.add(const Duration(days: 1));
       }
 
-      // Özel saat, kullanıcının belirlediği Uyanma/Yatış aralığında mı diye kontrol edelim (isteğe bağlı)
-      // bool isInUserRange;
-      // if (wrapsMidnight) {
-      //   isInUserRange = customTime.hour >= startHour || customTime.hour < endHour;
-      // } else {
-      //   isInUserRange = customTime.hour >= startHour && customTime.hour < endHour;
-      // }
-      // if (!isInUserRange) continue; // Eğer aralık dışındaysa bu özel saati kurma
+      // --- İSTEĞE BAĞLI: Özel saat uyku saatinde mi kontrolü ---
+      /*
+      bool isCustomTimeSleeping;
+      if (sleepWrapsMidnight) {
+        isCustomTimeSleeping = customTime.hour >= sleepStartHour || customTime.hour < sleepEndHour;
+      } else {
+        isCustomTimeSleeping = customTime.hour >= sleepStartHour && customTime.hour < sleepEndHour;
+      }
+      if (isCustomTimeSleeping) {
+        if (kDebugMode) {
+          print('[NotificationService] Özel saat ($timeString) uyku saatine denk geldi, kurulmuyor.');
+        }
+        continue; // Uyku saatindeyse bu özel alarmı kurma
+      }
+      */
+      // --- BİTİŞ: İSTEĞE BAĞLI ---
+
 
       final msg = _titleBodyForHour(hour);
+
+      if (kDebugMode) {
+        print('[NotificationService] Özel Alarm kuruluyor: ID=$notificationId, Zaman=$customTime, Mesaj="${msg.title}"');
+      }
+
       await _notificationsPlugin.zonedSchedule(
-        notificationId++, // ID'nin çakışmaması için artırmaya devam et
+        notificationId++,
         msg.title.isNotEmpty ? msg.title : 'Özel Hatırlatıcı! ⏰',
         msg.body.isNotEmpty
             ? msg.body
@@ -244,6 +316,9 @@ class NotificationService {
         UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time, // Her gün tekrarla
       );
+    }
+    if (kDebugMode) {
+      print('[NotificationService] Planlama tamamlandı. Toplam ${notificationId} alarm kuruldu/denendi.');
     }
   }
 }
