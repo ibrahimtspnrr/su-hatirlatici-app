@@ -59,12 +59,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // --- Tema rengini uygula ---
-  void _applyColor(String hex) {
+  void _applyColor(String hex) async {
     final modeStr = preferenceService.getThemeMode();
     final ThemeMode mode = ThemeMode.values.firstWhere(
           (e) => e.toString() == 'ThemeMode.$modeStr',
       orElse: () => ThemeMode.system,
     );
+    await preferenceService.saveAppPrimaryColor(hex);
 
     // Kaydet + anında uygula
     WaterTrackerApp.of(context).setThemeAndColor(mode, hex);
