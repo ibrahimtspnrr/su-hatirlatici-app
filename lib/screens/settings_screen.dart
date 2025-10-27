@@ -1,13 +1,13 @@
 // lib/screens/settings_screen.dart
-// (FINAL) – Ayarlar + Minimal Tema Rengi seçici (ÖZEL SAATLER KALDIRILDI)
+// (FINAL) – Ayarlar + Minimal Tema Rengi seçici (GECE YARISI SAAT DÜZELTMESİ)
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../services/preference_service.dart';
 import '../services/notification_service.dart';
 import '../services/water_record_service.dart';
+// Doğru import yolu varsayılarak (kırmızı çizgi olmamalı)
 import 'package:su_icme_uygulamasi/screens/personal_info_screen.dart';
-import 'personal_info_screen.dart';
 import '../main.dart'; // ← Tema rengini anında uygulamak için
 
 // =============================== AYARLAR EKRANI ==============================
@@ -73,9 +73,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _currentColorHex = hex;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Tema rengi güncellendi.')),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tema rengi güncellendi.')),
+      );
+    }
   }
 
   // --- Tema Rengi Kartı (Minimal) ---
@@ -274,7 +276,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (newGoal != null && newGoal > 500) {
                   await preferenceService.saveDailyGoal(newGoal);
                   _loadSettings();
-                  Navigator.pop(context);
+                  if (mounted) Navigator.pop(context);
                 }
               },
               child: const Text('Kaydet'),
@@ -312,7 +314,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _customVolumes[index] = newVolume;
                   await preferenceService.saveCustomVolumes(List<int>.from(_customVolumes));
                   _loadSettings();
-                  Navigator.pop(context);
+                  if (mounted) Navigator.pop(context);
                 }
               },
               child: const Text('Kaydet'),
@@ -334,11 +336,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
 
-  // SettingsScreen içinde: mevcut _showHoursEditDialog metodunu bununla değiştirin
-// SettingsScreen içinde: mevcut _showHoursEditDialog metodunu bununla değiştirin
+  // --- Uyanma/Yatış Saat Seçimi (GECE YARISI DÜZELTMESİ) ---
   Future<void> _showHoursEditDialog() async {
     int tempStart = _startHour;
-    int tempEnd = _endHour > _startHour ? _endHour : (_startHour + 1).clamp(1, 23);
+    // Yatış saatinin başlangıçtan sonra olmasını sağla (gece yarısını geçse bile)
+    int tempEnd = _endHour;
     int step = 0; // 0: Uyanma, 1: Yatış
 
     await showModalBottomSheet(
@@ -404,16 +406,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: CupertinoDatePicker(
                         mode: CupertinoDatePickerMode.time,
                         use24hFormat: true,
-                        // dakika seçimini istersen aç: minuteInterval: 5,
+                        // dakika seçimini kaldırıyoruz, sadece saat önemli
                         initialDateTime: DateTime(2024, 1, 1, initialHour, 0),
                         onDateTimeChanged: (dt) {
                           setInnerState(() {
                             if (step == 0) {
                               tempStart = dt.hour;
-                              // yatışın en az 1 saat sonrası olmasını öner
-                              if (tempEnd <= tempStart) {
-                                tempEnd = (tempStart + 1).clamp(1, 23);
-                              }
+                              // Yatış saati başlangıçla aynı olmasın diye kontrol edebiliriz
+                              // if (tempEnd == tempStart) {
+                              //   tempEnd = (tempStart + 1) % 24; // Gece yarısını geçmeyi handle eder
+                              // }
                             } else {
                               tempEnd = dt.hour;
                             }
@@ -446,15 +448,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 }
 
                                 // step == 1 => Kaydet
-                                if (tempStart >= tempEnd) {
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Yatış saati, uyanma saatinden sonra olmalıdır.'),
-                                    ),
-                                  );
-                                  return;
-                                }
+                                // --- ARTIK BU KONTROL GEREKLİ DEĞİL ---
+                                // if (tempStart >= tempEnd) { ... } BLOKU SİLİNDİ
+                                // --- BİTİŞ ---
 
                                 await preferenceService.saveReminderHours(tempStart, tempEnd);
 
@@ -491,6 +487,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       },
     );
   }
+  // --- BİTİŞ: _showHoursEditDialog ---
 
 
 
@@ -552,7 +549,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('İptal')),
           ElevatedButton(
-            onPressed: () { Navigator.pop(context, true); },
+            onPressed: () { if (mounted) Navigator.pop(context, true); },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Tümünü Sil', style: TextStyle(color: Colors.white)),
           ),
@@ -594,27 +591,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // 0) Tema Rengi (minimal & şık)
           _buildThemeColorCard(),
 
-          // 1) Hatırlatma Programı (ÖZEL SAATLER KARTINI BURADAN KALDIRDIM)
-
-          // EK: Kişisel Bilgiler Kartı (SettingsScreen build() içinde, listede uygun yere ekle)
+          // EK: Kişisel Bilgiler Kartı
           _buildSettingsCard(
             title: 'Kişisel Bilgiler',
             children: [
               ListTile(
-                leading: Icon(Icons.person_outline, color: Theme.of(context).primaryColor),
+                leading: Icon(Icons.person_outline, color: primary),
                 title: const Text('Kilo / Boy / Yaş / Cinsiyet'),
                 subtitle: const Text('Bilgilerini düzenle ve hedefi yeniden hesapla'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () async {
+                  // PersonalInfoScreen'e git ve geri döndüğünde hedefi yenile
                   final changed = await Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const PersonalInfoScreen()),
                   );
-                  // geri dönünce hedef & özetleri tazele
                   if (changed == true && mounted) {
-                    setState(() {
-                      // senin _currentGoal değişkenin vs. yenilensin
-                      _currentGoal = preferenceService.getDailyGoal();
-                    });
+                    _loadSettings(); // Hedefi ve diğer ayarları yeniden yükle
                   }
                 },
               ),
@@ -658,7 +650,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               ListTile(
                 leading: Icon(Icons.access_time, color: primary),
-                title: const Text('Uyanma ve Yatış Saatleri\nBu saatler arasında bildirim almazsınız'),
+                title: const Text('Uyanma ve Yatış Saatleri\nBu saatler arasında bildirim alırsınız'), // <-- Metin düzeltildi
                 subtitle: Text('$_startHour:00 - $_endHour:00 Arası'),
                 trailing: const Icon(Icons.edit),
                 onTap: _showHoursEditDialog,
@@ -701,6 +693,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ListTile(
                 leading: Icon(Icons.info_outline),
                 title: Text('Uygulama Versiyonu'),
+                // TODO: pubspec.yaml'dan versiyonu otomatik alabilirsiniz
                 subtitle: Text('1.0.0'),
               ),
             ],

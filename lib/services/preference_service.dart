@@ -1,4 +1,4 @@
-// lib/services/preference_service.dart (GÜNCEL – toggle + yaş/boy + cinsiyet destekli)
+// lib/services/preference_service.dart (GÜNCEL – init() fonksiyonu düzeltildi)
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
@@ -39,10 +39,11 @@ class PreferenceService {
 
   late SharedPreferences _prefs;
 
+  // --- DÜZELTİLMİŞ init() FONKSİYONU ---
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
 
-    // Eski tip sapıtmalarını temizle
+    // Eski tema modu tip sorunlarını temizle
     if (_prefs.containsKey(_themeKey)) {
       final dynamic value = _prefs.get(_themeKey);
       if (value is int || value is bool) {
@@ -52,8 +53,13 @@ class PreferenceService {
 
     // Varsayılan tema rengi (Soft Mavi)
     const String softBlueHex = '0xFF64B5F6';
-    await _prefs.setString(_appPrimaryColorKey, softBlueHex);
+
+    // SADECE HİÇ RENK KAYDEDİLMEMİŞSE varsayılanı ayarla
+    if (!_prefs.containsKey(_appPrimaryColorKey)) {
+      await _prefs.setString(_appPrimaryColorKey, softBlueHex);
+    }
   }
+  // --- BİTİŞ ---
 
   // --- Onboarding ---
   bool isOnboardingComplete() => _prefs.getBool(_onboardingKey) ?? false;
@@ -130,7 +136,7 @@ class PreferenceService {
       _prefs.setString(_appPrimaryColorKey, colorHex);
 
   String getAppPrimaryColorHex() =>
-      _prefs.getString(_appPrimaryColorKey) ?? '0xFF64B5F6';
+      _prefs.getString(_appPrimaryColorKey) ?? '0xFF64B5F6'; // Varsayılanı okurken de verelim
 }
 
 final preferenceService = PreferenceService();
