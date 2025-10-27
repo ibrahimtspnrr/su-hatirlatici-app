@@ -650,8 +650,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               ListTile(
                 leading: Icon(Icons.access_time, color: primary),
-                title: const Text('Uyanma ve Yatış Saatleri\nBu saatler arasında bildirim alırsınız'), // <-- Metin düzeltildi
-                subtitle: Text('$_startHour:00 - $_endHour:00 Arası'),
+                title: const Text('Uyanma ve Yatış Saatleri'), // <-- Metin düzeltildi
+                subtitle: Text('$_endHour:00 - $_startHour:00 Arası Bildirim Gönderilmez'),
                 trailing: const Icon(Icons.edit),
                 onTap: _showHoursEditDialog,
               ),
