@@ -487,7 +487,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _showIntervalEditDialog() async {
     // --- 2 DAKİKA SEÇENEĞİ KALDIRILDI ---
     final intervals = [
-      //{'value': 2, 'label': '2 Dakika (Test Amaçlı)'}, // <-- BU SATIR SİLİNDİ
+      {'value': 1, 'label': '1 Dakika (Test Amaçlı)'}, // <-- YENİ SATIR BURASI
       {'value': 30, 'label': '30 Dakika (Yoğun Takip)'},
       {'value': 45, 'label': '45 Dakika'},
       {'value': 60, 'label': '1 Saat (Önerilen)'},

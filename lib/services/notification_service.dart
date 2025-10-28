@@ -1,5 +1,5 @@
 // lib/services/notification_service.dart
-// (FINAL) – Zaman dilimine göre akıllı metin + UYKU SAATİ MANTIĞI
+// (FINAL) – Zaman dilimine göre akıllı metin + UYKU SAATİ MANTIĞI (ÖZEL SAATLER DAHİL)
 
 import 'dart:math';
 import 'package:flutter/foundation.dart'; // print için eklendi (debug)
@@ -249,12 +249,7 @@ class NotificationService {
       }
     }
 
-    // === ÖZEL SAATLER BÖLÜMÜ (İsteğe Bağlı) ===
-    // İsterseniz, özel saatlerin de uyku saatlerine denk gelip gelmediğini kontrol edebilirsiniz.
-    // Şimdilik bu bölümü olduğu gibi bırakıyorum, yani özel saatler uyku saatine denk gelse BİLE ÇALAR.
-    // Eğer özel saatlerin de uyku saatinde çalmasını istemiyorsanız, aşağıdaki for döngüsünün
-    // içine de `isSleepingTime` kontrolünü eklemeniz gerekir.
-
+    // === 2) Özel hatırlatma saatleri (SADECE ETKİN OLANLAR ve UYKU KONTROLLÜ) ===
     final List<String> enabledCustomTimes =
     preferenceService.getEnabledCustomReminders();
 
@@ -279,32 +274,37 @@ class NotificationService {
         customTime = customTime.add(const Duration(days: 1));
       }
 
-      // --- İSTEĞE BAĞLI: Özel saat uyku saatinde mi kontrolü ---
-      /*
+      // --- EKLENEN KONTROL BLOĞU ---
+      // Bu özel saat, uyku saatleri aralığında mı?
       bool isCustomTimeSleeping;
+      // sleepWrapsMidnight değişkeni yukarıdaki while döngüsünden önce tanımlanmıştı, onu kullanıyoruz.
       if (sleepWrapsMidnight) {
+        // Uyku gece yarısını geçiyorsa (örn: 22:00 - 09:00)
         isCustomTimeSleeping = customTime.hour >= sleepStartHour || customTime.hour < sleepEndHour;
       } else {
+        // Normal uyku aralığı (örn: 00:00 - 08:00)
         isCustomTimeSleeping = customTime.hour >= sleepStartHour && customTime.hour < sleepEndHour;
       }
+
+      // EĞER UYKU SAATİ İSE, bu özel alarmı kurma ve sonraki saate geç
       if (isCustomTimeSleeping) {
         if (kDebugMode) {
           print('[NotificationService] Özel saat ($timeString) uyku saatine denk geldi, kurulmuyor.');
         }
-        continue; // Uyku saatindeyse bu özel alarmı kurma
+        continue; // Sonraki timeString'e geç
       }
-      */
-      // --- BİTİŞ: İSTEĞE BAĞLI ---
+      // --- BİTİŞ: EKLENEN KONTROL BLOĞU ---
 
 
-      final msg = _titleBodyForHour(hour);
+      // (Eğer uyku saati değilse, aşağıdaki kod çalışmaya devam edecek)
+      final msg = _titleBodyForHour(hour); // Mesaj için orijinal 'hour' kullanılıyor
 
       if (kDebugMode) {
         print('[NotificationService] Özel Alarm kuruluyor: ID=$notificationId, Zaman=$customTime, Mesaj="${msg.title}"');
       }
 
       await _notificationsPlugin.zonedSchedule(
-        notificationId++,
+        notificationId++, // ID'yi artır
         msg.title.isNotEmpty ? msg.title : 'Özel Hatırlatıcı! ⏰',
         msg.body.isNotEmpty
             ? msg.body
@@ -316,7 +316,7 @@ class NotificationService {
         UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time, // Her gün tekrarla
       );
-    }
+    } // For döngüsü bitti
     if (kDebugMode) {
       print('[NotificationService] Planlama tamamlandı. Toplam ${notificationId} alarm kuruldu/denendi.');
     }
