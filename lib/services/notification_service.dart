@@ -111,7 +111,7 @@ class NotificationService {
       ];
       return (title: pick(titles), body: pick(bodies) + bodySuffix);
     } else if (hour >= 11 && hour <= 13) {
-      final titles = ['Öğle Molası ⏱️', 'Öğle Hidrasyonu', 'Mini Mola Zamanı'];
+      final titles = ['Öğle Molası ⏱️', 'Enerji Molası', 'Mini Mola Zamanı'];
       final bodies = [
         'Su içmek odaklanmayı artırır 💪',
         'Kısa bir su molası ver ve enerjini tazele.',
@@ -121,13 +121,13 @@ class NotificationService {
     } else if (hour >= 14 && hour <= 17) {
       final titles = ['Öğleden Sonra Performansı 🚀', 'Dinç Kal!', 'Devam! 💧'];
       final bodies = [
-        'Ritmini koru: küçük yudumlar büyük fark yaratır.',
+        'Ritmini koru: küçük yudumlar büyük fark demektir.',
         'Su içmek zihni tazeler. Hedefe adım adım!',
         'Bir bardak su ile enerjini yüksek tut.',
       ];
       return (title: pick(titles), body: pick(bodies) + bodySuffix);
     } else if (hour >= 18 && hour <= 21) {
-      final titles = ['Akşam Rutinine Ekle 🌆', 'Günü Güzel Bitir', 'Akşam Hidrasyonu'];
+      final titles = ['Akşam Rutinine Ekle 🌆', 'Günü Güzel Bitir', 'Hedeften Şaşma! 🎯'];
       final bodies = [
         'Bugün harikaydı! Bir bardak suyla devam et.',
         'Akşam keyfi: suyla hafifle ve rahatla.',
