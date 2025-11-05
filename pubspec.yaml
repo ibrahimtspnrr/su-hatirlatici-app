@@ -114,9 +114,9 @@ flutter_icons:
 
   android: true
 
-  image_path: "uygulama_icons/logo3.png"
+  image_path: "uygulama_icons/applelogo.png"
 
-  image_path_android: "uygulama_icons/logo3.png"
+  image_path_android: "uygulama_icons/androidlogo"
 
 
 

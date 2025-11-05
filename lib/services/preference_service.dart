@@ -1,4 +1,5 @@
-// lib/services/preference_service.dart (GÜNCEL – init() fonksiyonu düzeltildi)
+// lib/services/preference_service.dart
+// (FINAL) – Varsayılan uyku saatleri 23:00-08:00 olarak güncellendi
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
@@ -27,11 +28,11 @@ class PreferenceService {
   static const _weightKey = 'user_weight';
   static const _heightKey = 'user_height_cm';
   static const _ageKey = 'user_age';
-  static const _genderKey = 'user_gender';               // 🔹 NEW: "male" | "female"
+  static const _genderKey = 'user_gender';
   static const _dailyGoalKey = 'daily_water_goal';
   static const _customVolumesKey = 'custom_volumes';
-  static const _startHourKey = 'reminder_start_hour';
-  static const _endHourKey = 'reminder_end_hour';
+  static const _startHourKey = 'reminder_start_hour'; // Uyku Başlangıcı
+  static const _endHourKey = 'reminder_end_hour';     // Uyku Bitişi (Uyanma)
   static const _reminderIntervalKey = 'reminder_interval_minutes';
   static const _themeKey = 'app_theme_mode';
   static const _customRemindersKey = 'custom_reminder_times';
@@ -39,7 +40,6 @@ class PreferenceService {
 
   late SharedPreferences _prefs;
 
-  // --- DÜZELTİLMİŞ init() FONKSİYONU ---
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
 
@@ -51,15 +51,12 @@ class PreferenceService {
       }
     }
 
-    // Varsayılan tema rengi (Soft Mavi)
+    // Varsayılan tema rengi
     const String softBlueHex = '0xFF64B5F6';
-
-    // SADECE HİÇ RENK KAYDEDİLMEMİŞSE varsayılanı ayarla
     if (!_prefs.containsKey(_appPrimaryColorKey)) {
       await _prefs.setString(_appPrimaryColorKey, softBlueHex);
     }
   }
-  // --- BİTİŞ ---
 
   // --- Onboarding ---
   bool isOnboardingComplete() => _prefs.getBool(_onboardingKey) ?? false;
@@ -75,7 +72,7 @@ class PreferenceService {
   Future<void> saveAge(int age) async => _prefs.setInt(_ageKey, age);
   int getAge() => _prefs.getInt(_ageKey) ?? 25;
 
-  Future<void> saveGender(String gender) async => _prefs.setString(_genderKey, gender); // "male" | "female"
+  Future<void> saveGender(String gender) async => _prefs.setString(_genderKey, gender);
   String getGender() => _prefs.getString(_genderKey) ?? 'male';
 
   Future<void> saveDailyGoal(int goalInMl) async => _prefs.setInt(_dailyGoalKey, goalInMl);
@@ -94,8 +91,11 @@ class PreferenceService {
     await _prefs.setInt(_startHourKey, start);
     await _prefs.setInt(_endHourKey, end);
   }
-  int getStartHour() => _prefs.getInt(_startHourKey) ?? 8;
-  int getEndHour() => _prefs.getInt(_endHourKey) ?? 22;
+
+  // --- GÜNCELLENMİŞ VARSAYILAN DEĞERLER ---
+  int getStartHour() => _prefs.getInt(_startHourKey) ?? 23; // Varsayılan uyku başlangıcı: 23:00
+  int getEndHour() => _prefs.getInt(_endHourKey) ?? 8;     // Varsayılan uyku bitişi (uyanma): 08:00
+  // --- BİTİŞ ---
 
   Future<void> saveReminderInterval(int minutes) async =>
       _prefs.setInt(_reminderIntervalKey, minutes);
@@ -114,7 +114,6 @@ class PreferenceService {
     await _prefs.setStringList(_customRemindersKey, raw);
   }
 
-  // Sadece etkin saatler
   List<String> getEnabledCustomReminders() {
     return getReminderTimes()
         .where((e) => e.enabled)
@@ -136,7 +135,7 @@ class PreferenceService {
       _prefs.setString(_appPrimaryColorKey, colorHex);
 
   String getAppPrimaryColorHex() =>
-      _prefs.getString(_appPrimaryColorKey) ?? '0xFF64B5F6'; // Varsayılanı okurken de verelim
+      _prefs.getString(_appPrimaryColorKey) ?? '0xFF64B5F6';
 }
 
 final preferenceService = PreferenceService();

@@ -1,5 +1,6 @@
 // lib/services/notification_service.dart
-// (FINAL) – Zaman dilimine göre akıllı metin + UYKU SAATİ MANTIĞI (ÖZEL SAATLER DAHİL)
+// (SON HAL) – Uyanma/Yatış saatleri DAHİL, bu saatler DIŞINDA bildirim gönderir.
+// (Özel saatler de uyku saatlerinde gönderilmez)
 
 import 'dart:math';
 import 'package:flutter/foundation.dart'; // print için eklendi (debug)
@@ -126,21 +127,19 @@ class NotificationService {
       ];
       return (title: pick(titles), body: pick(bodies) + bodySuffix);
     } else { // Gece saatleri (22, 23, 0, 1, 2, 3, 4)
-      // Gece mesajları belki daha sakin olmalı?
       final titles = ['Geceye Hazırlık 🌙', 'Yumuşak Kapanış', 'Rahat Bir Gece'];
       final bodies = [
         'Bugün harikaydı! Bir bardak suyla günü bitir 🌙',
         'Uyku öncesi hafif bir su iyi gelir.',
         'Dinlenmeye geçmeden minik bir bardak su al.',
       ];
-      // Gece bildirim gönderilmeyeceği için bu mesajlar aslında pek kullanılmayacak.
       return (title: pick(titles), body: pick(bodies) + bodySuffix);
     }
   }
 
   /// Su içme hatırlatıcılarını planlar (UYKU SAATLERİ DIŞINDA)
   Future<void> scheduleWaterReminders({
-    required int sleepStartHour, // Uyku başlangıç saati (örn: 22)
+    required int sleepStartHour, // Uyku başlangıç saati (örn: 23)
     required int sleepEndHour,   // Uyku bitiş saati (örn: 8)
     required Duration interval,   // Hatırlatma sıklığı (örn: 60 dakika)
   }) async {
@@ -182,7 +181,6 @@ class NotificationService {
       nextScheduleTime = nextScheduleTime.subtract(interval);
     }
 
-
     // Gece yarısını geçme durumunu kontrol et (Uyku saatleri için)
     bool sleepWrapsMidnight = sleepEndHour <= sleepStartHour;
 
@@ -197,27 +195,28 @@ class NotificationService {
     while (alarmCount < maxAlarms) {
       alarmCount++;
 
-      // --- UYKU SAATİ KONTROLÜ (TERS MANTIK) ---
-      // Şu anki `nextScheduleTime.hour` uyku aralığında mı?
-      bool isSleepingTime;
+      // --- YENİ MANTIK (Uyanık Saatleri Hesapla - Bitiş ve Başlangıç DAHİL) ---
+      bool isAwakeTime;
       if (sleepWrapsMidnight) {
-        // Uyku gece yarısını geçiyorsa (örn: 22:00 - 06:00)
-        // Saat >= uyku başlangıcı VEYA Saat < uyku bitişi ise UYKU ZAMANI
-        isSleepingTime = nextScheduleTime.hour >= sleepStartHour || nextScheduleTime.hour < sleepEndHour;
+        // Gece yarısını geçiyorsa (Uyku 23:00 - 08:00)
+        // Uyanık Saatler: [08:00, ..., 23:00] (Her ikisi de dahil)
+        // Koşul: Saat >= 8 VE Saat <= 23
+        isAwakeTime = nextScheduleTime.hour >= sleepEndHour && nextScheduleTime.hour <= sleepStartHour;
       } else {
-        // Normal uyku aralığı (örn: 00:00 - 08:00)
-        // Saat >= uyku başlangıcı VE Saat < uyku bitişi ise UYKU ZAMANI
-        isSleepingTime = nextScheduleTime.hour >= sleepStartHour && nextScheduleTime.hour < sleepEndHour;
+        // Normal aralık (Uyku 01:00 - 08:00)
+        // Uyanık Saatler: [08:00, ..., 23:59] VEYA [00:00, 01:00] (Her ikisi de dahil)
+        // Koşul: Saat >= 8 VEYA Saat <= 1
+        isAwakeTime = nextScheduleTime.hour >= sleepEndHour || nextScheduleTime.hour <= sleepStartHour;
       }
-      // --- BİTİŞ: UYKU SAATİ KONTROLÜ ---
+      // --- BİTİŞ: YENİ MANTIK ---
 
 
-      // Eğer UYKU ZAMANI DEĞİLSE (!isSleepingTime), alarmı kur
-      if (!isSleepingTime) {
+      // Eğer UYANIK ZAMANI İSE (isAwakeTime), alarmı kur
+      if (isAwakeTime) {
         final msg = _titleBodyForHour(nextScheduleTime.hour);
 
         if (kDebugMode) {
-          print('[NotificationService] Alarm kuruluyor: ID=$notificationId, Zaman=$nextScheduleTime, Mesaj="${msg.title}"');
+          print('[NotificationService] (v2) Alarm kuruluyor: ID=$notificationId, Zaman=$nextScheduleTime, Mesaj="${msg.title}"');
         }
 
         await _notificationsPlugin.zonedSchedule(
@@ -233,7 +232,7 @@ class NotificationService {
         );
       } else {
         if (kDebugMode) {
-          print('[NotificationService] Uyku saati, alarm kurulmuyor: Zaman=$nextScheduleTime');
+          print('[NotificationService] (v2) Uyku saati, alarm kurulmuyor: Zaman=$nextScheduleTime');
         }
       }
 
@@ -274,27 +273,22 @@ class NotificationService {
         customTime = customTime.add(const Duration(days: 1));
       }
 
-      // --- EKLENEN KONTROL BLOĞU ---
-      // Bu özel saat, uyku saatleri aralığında mı?
-      bool isCustomTimeSleeping;
-      // sleepWrapsMidnight değişkeni yukarıdaki while döngüsünden önce tanımlanmıştı, onu kullanıyoruz.
+      // --- ÖZEL SAATLER İÇİN UYANIK KONTROLÜ (AYNI MANTIK) ---
+      bool isCustomTimeAwake;
       if (sleepWrapsMidnight) {
-        // Uyku gece yarısını geçiyorsa (örn: 22:00 - 09:00)
-        isCustomTimeSleeping = customTime.hour >= sleepStartHour || customTime.hour < sleepEndHour;
+        isCustomTimeAwake = customTime.hour >= sleepEndHour && customTime.hour <= sleepStartHour;
       } else {
-        // Normal uyku aralığı (örn: 00:00 - 08:00)
-        isCustomTimeSleeping = customTime.hour >= sleepStartHour && customTime.hour < sleepEndHour;
+        isCustomTimeAwake = customTime.hour >= sleepEndHour || customTime.hour <= sleepStartHour;
       }
+      // --- BİTİŞ ---
 
-      // EĞER UYKU SAATİ İSE, bu özel alarmı kurma ve sonraki saate geç
-      if (isCustomTimeSleeping) {
+      // EĞER UYANIK ZAMANI DEĞİLSE, bu özel alarmı kurma
+      if (!isCustomTimeAwake) {
         if (kDebugMode) {
           print('[NotificationService] Özel saat ($timeString) uyku saatine denk geldi, kurulmuyor.');
         }
         continue; // Sonraki timeString'e geç
       }
-      // --- BİTİŞ: EKLENEN KONTROL BLOĞU ---
-
 
       // (Eğer uyku saati değilse, aşağıdaki kod çalışmaya devam edecek)
       final msg = _titleBodyForHour(hour); // Mesaj için orijinal 'hour' kullanılıyor

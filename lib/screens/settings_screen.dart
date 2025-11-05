@@ -1,12 +1,12 @@
 // lib/screens/settings_screen.dart
-// (FINAL) – Ayarlar + Minimal Tema Rengi seçici (UYKU SAATİ MANTIĞI)
+// (FINAL) – Uyku saati mantığına göre metinler güncellendi
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../services/preference_service.dart';
 import '../services/notification_service.dart';
 import '../services/water_record_service.dart';
-// Doğru import yolu varsayılarak (kırmızı çizgi olmamalı)
+// Doğru import yolu varsayılarak
 import 'package:su_icme_uygulamasi/screens/personal_info_screen.dart';
 import '../main.dart'; // ← Tema rengini anında uygulamak için
 
@@ -22,8 +22,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   int _currentGoal = 0;
   List<int> _customVolumes = [];
-  int _startHour = 8;  // Uyku başlangıcı
-  int _endHour = 22; // Uyku bitişi
+  int _startHour = 23;  // Uyku başlangıcı
+  int _endHour = 8; // Uyku bitişi (Uyanma)
   int _intervalMinutes = 60;
 
   // Tema seçici görünürlüğü
@@ -51,8 +51,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _currentGoal = preferenceService.getDailyGoal();
       _customVolumes = preferenceService.getCustomVolumes();
-      _startHour = preferenceService.getStartHour(); // Aslında uyku başlangıcı
-      _endHour = preferenceService.getEndHour();     // Aslında uyku bitişi
+      _startHour = preferenceService.getStartHour(); // Uyku başlangıcı
+      _endHour = preferenceService.getEndHour();     // Uyku bitişi (Uyanma)
       _intervalMinutes = preferenceService.getReminderInterval();
       _currentColorHex = preferenceService.getAppPrimaryColorHex();
     });
@@ -485,16 +485,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
 
   Future<void> _showIntervalEditDialog() async {
-    // --- 2 DAKİKA SEÇENEĞİ KALDIRILDI ---
+    // "1 Dakika" test seçeneğini koruyoruz
     final intervals = [
-      {'value': 1, 'label': '1 Dakika (Test Amaçlı)'}, // <-- YENİ SATIR BURASI
+      {'value': 1, 'label': '1 Dakika (Test Amaçlı)'},
       {'value': 30, 'label': '30 Dakika (Yoğun Takip)'},
       {'value': 45, 'label': '45 Dakika'},
       {'value': 60, 'label': '1 Saat (Önerilen)'},
       {'value': 90, 'label': '1 Saat 30 Dakika'},
       {'value': 120, 'label': '2 Saat (Rahat Takip)'}
     ];
-    // --- BİTİŞ ---
 
     int? selectedInterval = await showDialog<int>(
       context: context,
@@ -649,18 +648,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: 'Sabit Aralık Ayarları',
             children: [
               ListTile(
-                leading: Icon(Icons.bedtime_outlined, color: primary), // <-- İkon değişti
-                // --- YENİ METİNLER ---
-                title: const Text('Uyku Saatleri'),
+                leading: Icon(Icons.bedtime_outlined, color: primary),
+
+                // --- İSTEĞİNİZE GÖRE DEĞİŞTİRİLDİ ---
+                title: const Text('Uyku Saatleri\nUyurken Bildirim Almazsınız'),
                 subtitle: Text('$_startHour:00 - $_endHour:00 arası bildirim gönderilmez'),
                 // --- BİTİŞ ---
+
                 trailing: const Icon(Icons.edit),
                 onTap: _showHoursEditDialog,
               ),
               ListTile(
-                leading: Icon(Icons.notifications_active_outlined, color: primary), // <-- İkon değişti
+                leading: Icon(Icons.notifications_active_outlined, color: primary),
                 title: const Text('Hatırlatıcı Sıklığı'),
-                subtitle: Text('Uyanıkken her $_intervalMinutes dakikada bir'), // <-- Metin güncellendi
+                subtitle: Text('Uyanıkken her $_intervalMinutes dakikada bir'),
                 trailing: const Icon(Icons.edit),
                 onTap: _showIntervalEditDialog,
               ),
