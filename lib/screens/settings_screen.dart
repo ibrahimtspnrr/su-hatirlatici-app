@@ -487,7 +487,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _showIntervalEditDialog() async {
     // "1 Dakika" test seçeneğini koruyoruz
     final intervals = [
-      {'value': 1, 'label': '1 Dakika (Test Amaçlı)'},
       {'value': 30, 'label': '30 Dakika (Yoğun Takip)'},
       {'value': 45, 'label': '45 Dakika'},
       {'value': 60, 'label': '1 Saat (Önerilen)'},
