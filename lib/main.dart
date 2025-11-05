@@ -7,7 +7,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 // --- DOĞRU IMPORT ---
-import 'package:flutter_native_timezone/flutter_native_timezone.dart';
 // --- BİTİŞ ---
 
 import 'package:hive_flutter/hive_flutter.dart';
@@ -53,17 +52,10 @@ void main() async {
   // --- ZAMAN DİLİMİ (DOĞRU KURULUM) ---
   tz.initializeTimeZones();
 
-  try {
-    // 2. Cihazın gerçek saat dilimini (örn: "Europe/Istanbul") al
-    // --- DOĞRU FONKSİYON ADI ---
-    final String timeZoneName = await FlutterNativeTimezone.getLocalTimezone();
-
-    // 3. Eklentiyi bu yerel saat dilimine ayarla
-    tz.setLocalLocation(tz.getLocation(timeZoneName));
-  } catch (e) {
-    // Hata olursa UTC'ye ayarla
-    tz.setLocalLocation(tz.getLocation('UTC'));
-  }
+// --- ZAMAN DİLİMİ (DOĞRU VE MANUEL KURULUM) ---
+  tz.initializeTimeZones();
+  tz.setLocalLocation(tz.getLocation('Europe/Istanbul')); // <-- TÜM BLOK BUNUNLA DEĞİŞTİ
+// --- BİTİŞ ---
   // --- BİTİŞ ---
 
   // Bildirimler
